@@ -1,242 +1,474 @@
--- OMA FAMILY | Anime Dice Hub (VERSIÓN MEJORADA Y FUNCIONAL)
+
+--[[
+    OMA FAMILY | ANIME DICE HUB
+    Interfaz Rayfield para Roblox
+    Idioma: Español
+    Compatible con diseño móvil
+
+    IMPORTANTE:
+    Los módulos de automatización del juego requieren
+    conocer sus RemoteEvents y la estructura real del juego.
+    No se inventan eventos ni se envían ataques desconocidos.
+]]
+
+--==================================================
+-- 1. SERVICIOS
+--==================================================
+
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
+
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
--- Anti-AFK integrado (evita desconexión a los 20 minutos)
-Player.Idled:Connect(function()
-    VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-    task.wait(1)
-    VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+--==================================================
+-- 2. CONFIGURACIÓN
+--==================================================
+
+local Config = {
+    Velocidad = 16,
+    Salto = 50,
+    AntiAFK = true,
+
+    AutoRoll = false,
+    KillAura = false,
+    AutoCollect = false,
+    AutoSell = false,
+    AutoGrade = false,
+}
+
+local Connections = {}
+local CharacterConnection
+
+--==================================================
+-- 3. RAYFIELD UI
+--==================================================
+
+local Rayfield
+
+local success, result = pcall(function()
+    return loadstring(game:HttpGet(
+        "https://sirius.menu/rayfield"
+    ))()
 end)
 
-local LOGO_IMAGE = "rbxassetid://0"
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "OmaFamilyAnimeDice"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = PlayerGui
-
-local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.fromOffset(320, 420)
-Main.Position = UDim2.new(0.5, -160, 0.5, -210)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Parent = ScreenGui
-
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
-
-local Border = Instance.new("UIStroke")
-Border.Color = Color3.fromRGB(255, 184, 35)
-Border.Thickness = 2
-Border.Parent = Main
-
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 48)
-Header.BackgroundColor3 = Color3.fromRGB(32, 26, 12)
-Header.BorderSizePixel = 0
-Header.Active = true
-Header.Parent = Main
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -100, 1, 0)
-Title.Position = UDim2.fromOffset(10, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "OMA FAMILY | ANIME DICE"
-Title.TextColor3 = Color3.fromRGB(255, 195, 45)
-Title.TextSize = 14
-Title.Font = Enum.Font.GothamBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Header
-
-local Minimize = Instance.new("TextButton")
-Minimize.Size = UDim2.fromOffset(38, 34)
-Minimize.Position = UDim2.new(1, -44, 0, 7)
-Minimize.Text = "—"
-Minimize.TextSize = 22
-Minimize.TextColor3 = Color3.new(1, 1, 1)
-Minimize.BackgroundColor3 = Color3.fromRGB(65, 50, 20)
-Minimize.Parent = Header
-Instance.new("UICorner", Minimize).CornerRadius = UDim.new(0, 8)
-
-local Body = Instance.new("ScrollingFrame")
-Body.Name = "Options"
-Body.Position = UDim2.fromOffset(10, 58)
-Body.Size = UDim2.new(1, -20, 1, -68)
-Body.BackgroundTransparency = 1
-Body.BorderSizePixel = 0
-Body.ScrollBarThickness = 4
-Body.CanvasSize = UDim2.fromOffset(0, 480)
-Body.Parent = Main
-
-local Layout = Instance.new("UIListLayout")
-Layout.Padding = UDim.new(0, 8)
-Layout.SortOrder = Enum.SortOrder.LayoutOrder
-Layout.Parent = Body
-
--- Variables de Estado
-local AutoRollActive = false
-local FastFarmActive = false
-local AutoCollectActive = false
-local SuperSpeedActive = false
-
--- Función para crear botones con cambio de color ON/OFF
-local function AddToggleButton(text, callback)
-    local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(1, -5, 0, 40)
-    Button.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
-    Button.TextColor3 = Color3.fromRGB(255, 210, 90)
-    Button.TextSize = 14
-    Button.Font = Enum.Font.GothamSemibold
-    Button.Text = text .. " [OFF]"
-    Button.Parent = Body
-    Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 8)
-    
-    local state = false
-    Button.Activated:Connect(function()
-        state = not state
-        if state then
-            Button.Text = text .. " [ON]"
-            Button.BackgroundColor3 = Color3.fromRGB(45, 120, 55)
-        else
-            Button.Text = text .. " [OFF]"
-            Button.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
-        end
-        callback(state)
-    end)
-    return Button
+if not success or not result then
+    warn("[OMA FAMILY] No se pudo cargar Rayfield:", result)
+    return
 end
 
--- 1. Auto-Roll Rápidos
-AddToggleButton("Auto-Roll Rápido", function(enabled)
-    AutoRollActive = enabled
-    task.spawn(function()
-        while AutoRollActive do
-            pcall(function()
-                ReplicatedStorage:FindFirstChild("Roll", true):FireServer()
-            end)
-            task.wait(0.1)
-        end
-    end)
-end)
+Rayfield = result
 
--- 2. Fast Farm de Torre
-AddToggleButton("Fast Tower Farm", function(enabled)
-    FastFarmActive = enabled
-    task.spawn(function()
-        while FastFarmActive do
-            pcall(function()
-                for _, enemy in pairs(workspace:GetChildren()) do
-                    if enemy:FindFirstChild("Humanoid") and enemy.Name ~= Player.Name then
-                        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-                            local dist = (Player.Character.HumanoidRootPart.Position - enemy.HumanoidRootPart.Position).Magnitude
-                            if dist < 50 then
-                                ReplicatedStorage:FindFirstChild("Attack", true):FireServer(enemy)
-                            end
-                        end
-                    end
-                end
-            end)
-            task.wait(0.05)
-        end
-    end)
-end)
+local Window = Rayfield:CreateWindow({
+    Name = "OMA FAMILY | Anime Dice",
+    LoadingTitle = "OMA FAMILY",
+    LoadingSubtitle = "Anime Dice Hub",
+    ConfigurationSaving = {
+        Enabled = false,
+    },
+    KeySystem = false,
+})
 
--- 3. Recolección Automática de Gemas/Drops
-AddToggleButton("Magnet Gemas / Drops", function(enabled)
-    AutoCollectActive = enabled
-    task.spawn(function()
-        while AutoCollectActive do
-            pcall(function()
-                for _, item in pairs(workspace:GetChildren()) do
-                    if item:IsA("BasePart") and (item.Name:find("Gem") or item.Name:find("Coin") or item.Name:find("Drop")) then
-                        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-                            item.CFrame = Player.Character.HumanoidRootPart.CFrame
-                        end
-                    end
-                end
-            end)
-            task.wait(0.3)
-        end
-    end)
-end)
+--==================================================
+-- 4. FUNCIONES DE PERSONAJE
+--==================================================
 
--- 4. Super Velocidad
-AddToggleButton("Super Velocidad", function(enabled)
-    SuperSpeedActive = enabled
-    task.spawn(function()
-        while SuperSpeedActive do
-            pcall(function()
-                if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-                    Player.Character.Humanoid.WalkSpeed = 50
-                end
-            end)
-            task.wait(0.2)
-        end
-        if not SuperSpeedActive and Player.Character and Player.Character:FindFirstChild("Humanoid") then
-            Player.Character.Humanoid.WalkSpeed = 16
-        end
-    end)
-end)
+local function GetCharacter()
+    return Player.Character
+end
 
--- Controles de arrastrar interfaz
-local dragging, dragInput, dragStart, startPosition
-Header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPosition = Main.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+local function GetHumanoid()
+    local Character = GetCharacter()
+    if not Character then
+        return nil
+    end
+
+    return Character:FindFirstChildOfClass("Humanoid")
+end
+
+local function ApplyMovement()
+    local Humanoid = GetHumanoid()
+    if not Humanoid then
+        return
+    end
+
+    Humanoid.WalkSpeed = Config.Velocidad
+
+    -- JumpPower funciona cuando UseJumpPower está activado.
+    if Humanoid.UseJumpPower then
+        Humanoid.JumpPower = Config.Salto
+    else
+        -- En juegos que usan JumpHeight, se adapta el valor.
+        Humanoid.JumpHeight = Config.Salto
+    end
+end
+
+Connections.CharacterAdded = Player.CharacterAdded:Connect(
+    function()
+        task.wait(0.5)
+        ApplyMovement()
+    end
+)
+
+--==================================================
+-- 5. ANTI-AFK
+--==================================================
+
+local function StartAntiAFK()
+    if Connections.AntiAFK then
+        Connections.AntiAFK:Disconnect()
+        Connections.AntiAFK = nil
+    end
+
+    if not Config.AntiAFK then
+        return
+    end
+
+    Connections.AntiAFK =
+        Player.Idled:Connect(function()
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(
+                    Vector2.new(0, 0)
+                )
+            end)
         end)
+end
+
+--==================================================
+-- 6. PESTAÑA PRINCIPAL
+--==================================================
+
+local MainTab = Window:CreateTab(
+    "Principal",
+    "house"
+)
+
+MainTab:CreateSection("Estado del sistema")
+
+MainTab:CreateParagraph({
+    Title = "OMA FAMILY",
+    Content =
+        "Interfaz preparada para Anime Dice.\n" ..
+        "Los automatismos necesitan verificar los eventos reales."
+})
+
+MainTab:CreateButton({
+    Name = "Actualizar personaje",
+    Callback = function()
+        ApplyMovement()
+        Rayfield:Notify({
+            Title = "OMA FAMILY",
+            Content = "Se aplicaron los ajustes de movimiento.",
+            Duration = 3,
+        })
+    end,
+})
+
+--==================================================
+-- 7. PESTAÑA AUTO-ROLL
+--==================================================
+
+local RollTab = Window:CreateTab(
+    "Auto Roll",
+    "dices"
+)
+
+RollTab:CreateSection("Tiradas automáticas")
+
+RollTab:CreateToggle({
+    Name = "Fast Auto-Roll",
+    CurrentValue = false,
+    Flag = "OMAAutoRoll",
+    Callback = function(Value)
+        Config.AutoRoll = Value
+
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Roll",
+                Content =
+                    "Pendiente: verificar el evento real de tirada.",
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+RollTab:CreateParagraph({
+    Title = "Animaciones",
+    Content =
+        "La interfaz no desactiva animaciones del servidor. " ..
+        "Para hacerlo correctamente hay que identificar cómo " ..
+        "Anime Dice reproduce la animación del dado."
+})
+
+--==================================================
+-- 8. PESTAÑA TORRE
+--==================================================
+
+local TowerTab = Window:CreateTab(
+    "Torre",
+    "swords"
+)
+
+TowerTab:CreateSection("Combate")
+
+TowerTab:CreateToggle({
+    Name = "Kill Aura",
+    CurrentValue = false,
+    Flag = "OMAKillAura",
+    Callback = function(Value)
+        Config.KillAura = Value
+
+        if Value then
+            Rayfield:Notify({
+                Title = "Combate",
+                Content =
+                    "Pendiente: verificar el sistema de combate.",
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+TowerTab:CreateToggle({
+    Name = "Fast Tower Farm",
+    CurrentValue = false,
+    Flag = "OMATowerFarm",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Torre",
+                Content =
+                    "Pendiente: verificar enemigos y recompensas.",
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+TowerTab:CreateParagraph({
+    Title = "Configuración requerida",
+    Content =
+        "No se envían ataques ficticios. Se necesitan los " ..
+        "eventos de combate y las condiciones de daño del juego."
+})
+
+--==================================================
+-- 9. PESTAÑA RECOLECCIÓN
+--==================================================
+
+local CollectTab = Window:CreateTab(
+    "Recolección",
+    "gem"
+)
+
+CollectTab:CreateSection("Gemas, cofres y objetos")
+
+CollectTab:CreateToggle({
+    Name = "Item & Gem Magnet",
+    CurrentValue = false,
+    Flag = "OMAItemMagnet",
+    Callback = function(Value)
+        Config.AutoCollect = Value
+
+        if Value then
+            Rayfield:Notify({
+                Title = "Recolección",
+                Content =
+                    "Pendiente: verificar los objetos recogibles.",
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+CollectTab:CreateParagraph({
+    Title = "Recogida de objetos",
+    Content =
+        "Mover objetos locales no garantiza recogerlos. " ..
+        "Se debe verificar el mecanismo de recogida del servidor."
+})
+
+--==================================================
+-- 10. PESTAÑA INVENTARIO
+--==================================================
+
+local InventoryTab = Window:CreateTab(
+    "Inventario",
+    "backpack"
+)
+
+InventoryTab:CreateSection("Filtro de rarezas")
+
+InventoryTab:CreateDropdown({
+    Name = "Rareza mínima que conservar",
+    Options = {
+        "Common",
+        "Rare",
+        "Epic",
+        "Legendary",
+        "Mythic",
+        "Todas",
+    },
+    CurrentOption = {"Legendary"},
+    MultipleOptions = false,
+    Flag = "OMARarityFilter",
+    Callback = function(Options)
+        print(
+            "[OMA FAMILY] Filtro seleccionado:",
+            Options[1] or "Legendary"
+        )
+    end,
+})
+
+InventoryTab:CreateToggle({
+    Name = "Auto-Sell",
+    CurrentValue = false,
+    Flag = "OMAAutoSell",
+    Callback = function(Value)
+        Config.AutoSell = Value
+
+        if Value then
+            Rayfield:Notify({
+                Title = "Inventario",
+                Content =
+                    "Desactivado de forma segura hasta verificar " ..
+                    "qué personajes se venderían.",
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+InventoryTab:CreateToggle({
+    Name = "Auto-Delete Trash",
+    CurrentValue = false,
+    Flag = "OMAAutoDelete",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Inventario",
+                Content =
+                    "No se eliminarán personajes sin verificar " ..
+                    "sus rarezas e identificadores.",
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+--==================================================
+-- 11. PESTAÑA MEJORAS
+--==================================================
+
+local UpgradeTab = Window:CreateTab(
+    "Mejoras",
+    "trending-up"
+)
+
+UpgradeTab:CreateSection("Grado del personaje")
+
+UpgradeTab:CreateToggle({
+    Name = "Auto-Grade",
+    CurrentValue = false,
+    Flag = "OMAAutoGrade",
+    Callback = function(Value)
+        Config.AutoGrade = Value
+
+        if Value then
+            Rayfield:Notify({
+                Title = "Mejoras",
+                Content =
+                    "Pendiente: verificar costes, grados y límites.",
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+UpgradeTab:CreateParagraph({
+    Title = "Mejoras seguras",
+    Content =
+        "Antes de gastar gemas automáticamente hay que conocer " ..
+        "el coste por grado, el límite máximo y el personaje objetivo."
+})
+
+--==================================================
+-- 12. PESTAÑA JUGADOR
+--==================================================
+
+local PlayerTab = Window:CreateTab(
+    "Jugador",
+    "user-round"
+)
+
+PlayerTab:CreateSection("Movimiento")
+
+PlayerTab:CreateSlider({
+    Name = "Velocidad",
+    Range = {16, 100},
+    Increment = 1,
+    Suffix = " studs/s",
+    CurrentValue = 16,
+    Flag = "OMAWalkSpeed",
+    Callback = function(Value)
+        Config.Velocidad = Value
+        ApplyMovement()
+    end,
+})
+
+PlayerTab:CreateSlider({
+    Name = "Salto",
+    Range = {25, 150},
+    Increment = 5,
+    Suffix = "",
+    CurrentValue = 50,
+    Flag = "OMAJumpPower",
+    Callback = function(Value)
+        Config.Salto = Value
+        ApplyMovement()
+    end,
+})
+
+PlayerTab:CreateSection("Utilidades")
+
+PlayerTab:CreateToggle({
+    Name = "Anti-AFK",
+    CurrentValue = true,
+    Flag = "OMAAntiAFK",
+    Callback = function(Value)
+        Config.AntiAFK = Value
+        StartAntiAFK()
+    end,
+})
+
+--==================================================
+-- 13. INICIALIZACIÓN Y LIMPIEZA
+--==================================================
+
+ApplyMovement()
+StartAntiAFK()
+
+Rayfield:Notify({
+    Title = "OMA FAMILY",
+    Content = "Anime Dice Hub iniciado correctamente.",
+    Duration = 5,
+})
+
+-- Para limpiar las conexiones si necesitas cerrar
+-- manualmente este sistema desde tu propio código:
+local function Cleanup()
+    for _, Connection in pairs(Connections) do
+        if typeof(Connection) == "RBXScriptConnection" then
+            Connection:Disconnect()
+        end
     end
-end)
 
-Header.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
+    Connections = {}
+end
 
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        local delta = input.Position - dragStart
-        Main.Position = UDim2.new(startPosition.X.Scale, startPosition.X.Offset + delta.X, startPosition.Y.Scale, startPosition.Y.Offset + delta.Y)
-    end
-end)
-
--- Botón flotante para restaurar
-local Restore = Instance.new("ImageButton")
-Restore.Name = "Restore"
-Restore.Size = UDim2.fromOffset(58, 58)
-Restore.Position = UDim2.new(0, 18, 0.5, -29)
-Restore.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-Restore.Image = LOGO_IMAGE
-Restore.ScaleType = Enum.ScaleType.Crop
-Restore.Visible = false
-Restore.Active = true
-Restore.Parent = ScreenGui
-Instance.new("UICorner", Restore).CornerRadius = UDim.new(1, 0)
-
-local RestoreBorder = Instance.new("UIStroke")
-RestoreBorder.Color = Color3.fromRGB(255, 184, 35)
-RestoreBorder.Thickness = 2
-RestoreBorder.Parent = Restore
-
-Minimize.Activated:Connect(function()
-    Main.Visible = false
-    Restore.Visible = true
-end)
-
-Restore.Activated:Connect(function()
-    Restore.Visible = false
-    Main.Visible = true
-end)
-
-print("OMA FAMILY | Script cargado correctamente")
+-- No se ejecuta Cleanup() aquí porque cerraría el Anti-AFK.
+-- Llama Cleanup() únicamente cuando quieras detener el sistema.
